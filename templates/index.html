@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>Inventory Overview</h4>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="showScanner()">
+                        <i class="fas fa-barcode"></i> Scan Barcode
+                    </button>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductModal">
+                        <i class="fas fa-plus"></i> Add New Product
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Category</th>
+                                <th>Quantity</th>
+                                <th>Unit Price</th>
+                                <th>Reorder Level</th>
+                                <th>Expiry Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in products %}
+                            <tr>
+                                <td>{{ product.name }}</td>
+                                <td>{{ product.category }}</td>
+                                <td>{{ product.quantity }}</td>
+                                <td>₹{{ "%.2f"|format(product.unit_price) }}</td>
+                                <td>{{ product.reorder_level }}</td>
+                                <td>
+                                    {% if product.expiry_date %}
+                                        {% if product.expiry_date <= today %}
+                                            <span class="text-danger">{{ product.expiry_date.strftime('%Y-%m-%d') }}</span>
+                                        {% elif (product.expiry_date - today).days <= 30 %}
+                                            <span class="text-warning">{{ product.expiry_date.strftime('%Y-%m-%d') }}</span>
+                                        {% else %}
+                                            {{ product.expiry_date.strftime('%Y-%m-%d') }}
+                                        {% endif %}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if product.quantity <= product.reorder_level %}
+                                    <span class="badge bg-danger">Low Stock</span>
+                                    {% else %}
+                                    <span class="badge bg-success">In Stock</span>
+                                    {% endif %}
+                                    
+                                    {% if product.expiry_date and (product.expiry_date - today).days <= 30 and (product.expiry_date - today).days > 0 %}
+                                    <span class="badge bg-warning">Expiring Soon</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-info" onclick="editProduct({{ product.id }})">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-success" onclick="addStock({{ product.id }})">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-warning" onclick="removeStock({{ product.id }})">
+                                            <i class="fas fa-minus"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-primary" onclick="getPrediction({{ product.id }})">
+                                            <i class="fas fa-chart-line"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Product Modal -->
+<div class="modal fade" id="addProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addProductForm">
+                    <div class="mb-3">
+                        <label class="form-label">Product Name</label>
+                        <input type="text" class="form-control" name="name" id="add_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <input type="text" class="form-control" name="category" id="add_category" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" id="add_description"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unit Price</label>
+                        <input type="number" class="form-control" name="unit_price" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Initial Quantity</label>
+                        <input type="number" class="form-control" name="quantity" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reorder Level</label>
+                        <input type="number" class="form-control" name="reorder_level" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Expiry Date</label>
+                        <input type="date" class="form-control" name="expiry_date">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Barcode</label>
+                        <input type="text" class="form-control" name="barcode" id="add_barcode">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="submitAddProduct()">Add Product</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Product Modal -->
+<div class="modal fade" id="editProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProductForm">
+                    <input type="hidden" name="product_id" id="edit_id">
+                    <div class="mb-3">
+                        <label class="form-label">Product Name</label>
+                        <input type="text" class="form-control" name="name" id="edit_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <input type="text" class="form-control" name="category" id="edit_category" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" id="edit_description"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unit Price</label>
+                        <input type="number" class="form-control" name="unit_price" id="edit_unit_price" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-control" name="quantity" id="edit_quantity" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reorder Level</label>
+                        <input type="number" class="form-control" name="reorder_level" id="edit_reorder_level" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Expiry Date</label>
+                        <input type="date" class="form-control" name="expiry_date" id="edit_expiry_date">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Barcode</label>
+                        <input type="text" class="form-control" name="barcode" id="edit_barcode">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="submitEditProduct()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Add Stock Modal -->
+<div class="modal fade" id="quickAddStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStockForm">
+                    <input type="hidden" name="product_id" id="add_stock_product_id">
+                    <div class="mb-3">
+                        <label class="form-label">Quantity to Add</label>
+                        <input type="number" class="form-control" name="quantity" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="submitAddStock()">Add Stock</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Remove Stock Modal -->
+<div class="modal fade" id="quickRemoveStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Remove Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="removeStockForm">
+                    <input type="hidden" name="product_id" id="remove_stock_product_id">
+                    <div class="mb-3">
+                        <label class="form-label">Quantity to Remove</label>
+                        <input type="number" class="form-control" name="quantity" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="submitRemoveStock()">Remove Stock</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Barcode Scanner Modal -->
+<div class="modal fade" id="barcodeScannerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Scan Barcode</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="stopScanner()"></button>
+            </div>
+            <div class="modal-body">
+                <div id="interactive" class="viewport"></div>
+                <div id="scanResult" class="mt-3 text-center"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="stopScanner()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let scanner = null;
+
+function initializeScanner() {
+    Quagga.init({
+        inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector("#interactive"),
+            constraints: {
+                facingMode: "environment"
+            },
+        },
+        decoder: {
+            readers: [
+                "ean_reader",
+                "ean_8_reader",
+                "code_128_reader",
+                "code_39_reader",
+                "upc_reader"
+            ]
+        },
+        locate: true,
+        frequency: 10
+    }, function(err) {
+        if (err) {
+            console.error(err);
+            alert("Error initializing scanner: " + err);
+            return;
+        }
+        Quagga.start();
+    });
+
+    Quagga.onDetected(function(result) {
+        const code = result.codeResult.code;
+        document.getElementById('scanResult').innerHTML = `
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> Scanned Code: ${code}
+            </div>
+        `;
+        
+        // Search for product with this barcode
+        searchByBarcode(code);
+    });
+}
+
+function stopScanner() {
+    if (Quagga) {
+        Quagga.stop();
+    }
+}
+
+async function searchByBarcode(barcode) {
+    try {
+        // First check if product exists in database
+        const existingResponse = await fetch(`/api/products/barcode/${barcode}`);
+        const existingData = await existingResponse.json();
+        
+        if (existingData.product) {
+            // Product found - show edit modal
+            const product = existingData.product;
+            document.getElementById('edit_id').value = product.id;
+            document.getElementById('edit_name').value = product.name;
+            document.getElementById('edit_category').value = product.category;
+            document.getElementById('edit_description').value = product.description || '';
+            document.getElementById('edit_unit_price').value = product.unit_price;
+            document.getElementById('edit_quantity').value = product.quantity;
+            document.getElementById('edit_reorder_level').value = product.reorder_level;
+            document.getElementById('edit_expiry_date').value = product.expiry_date || '';
+            document.getElementById('edit_barcode').value = product.barcode;
+            
+            stopScanner();
+            const scannerModal = bootstrap.Modal.getInstance(document.getElementById('barcodeScannerModal'));
+            scannerModal.hide();
+            
+            const editModal = new bootstrap.Modal(document.getElementById('editProductModal'));
+            editModal.show();
+        } else {
+            // Product not found - fetch information from external API
+            const infoResponse = await fetch(`/api/products/barcode/${barcode}/info`);
+            const infoData = await infoResponse.json();
+            
+            if (infoData.success) {
+                // Product information found from external API
+                const product = infoData.product;
+                document.getElementById('add_barcode').value = barcode;
+                document.getElementById('add_name').value = product.name;
+                document.getElementById('add_category').value = product.category;
+                document.getElementById('add_description').value = product.description;
+                
+                // Show product image if available
+                if (product.image_url) {
+                    const imagePreview = document.createElement('img');
+                    imagePreview.src = product.image_url;
+                    imagePreview.className = 'img-fluid mb-3';
+                    document.getElementById('addProductForm').insertBefore(imagePreview, document.getElementById('addProductForm').firstChild);
+                }
+                
+                stopScanner();
+                const scannerModal = bootstrap.Modal.getInstance(document.getElementById('barcodeScannerModal'));
+                scannerModal.hide();
+                
+                const addModal = new bootstrap.Modal(document.getElementById('addProductModal'));
+                addModal.show();
+            } else {
+                // Product information not found
+                document.getElementById('scanResult').innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Product not found. Please enter details manually.
+                    </div>
+                `;
+                document.getElementById('add_barcode').value = barcode;
+                
+                stopScanner();
+                const scannerModal = bootstrap.Modal.getInstance(document.getElementById('barcodeScannerModal'));
+                scannerModal.hide();
+                
+                const addModal = new bootstrap.Modal(document.getElementById('addProductModal'));
+                addModal.show();
+            }
+        }
+    } catch (error) {
+        alert('Error searching for product');
+    }
+}
+
+function showScanner() {
+    const modal = new bootstrap.Modal(document.getElementById('barcodeScannerModal'));
+    modal.show();
+    initializeScanner();
+}
+
+async function editProduct(productId) {
+    try {
+        const response = await fetch(`/api/products/${productId}`);
+        if (response.ok) {
+            const product = await response.json();
+            document.getElementById('edit_id').value = product.id;
+            document.getElementById('edit_name').value = product.name;
+            document.getElementById('edit_category').value = product.category;
+            document.getElementById('edit_description').value = product.description || '';
+            document.getElementById('edit_unit_price').value = product.unit_price;
+            document.getElementById('edit_quantity').value = product.quantity;
+            document.getElementById('edit_reorder_level').value = product.reorder_level;
+            document.getElementById('edit_barcode').value = product.barcode;
+            document.getElementById('edit_expiry_date').value = product.expiry_date || '';
+            
+            const editModal = new bootstrap.Modal(document.getElementById('editProductModal'));
+            editModal.show();
+        } else {
+            const error = await response.json();
+            alert(error.error || 'Error fetching product details');
+        }
+    } catch (error) {
+        alert('Error fetching product details');
+    }
+}
+
+async function submitEditProduct() {
+    const form = document.getElementById('editProductForm');
+    const formData = new FormData(form);
+    const productId = formData.get('product_id');
+    const data = Object.fromEntries(formData.entries());
+    
+    try {
+        const response = await fetch(`/api/products/${productId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert(error.error);
+        }
+    } catch (error) {
+        alert('Error updating product');
+    }
+}
+
+function addStock(productId) {
+    document.getElementById('add_stock_product_id').value = productId;
+    const modal = new bootstrap.Modal(document.getElementById('quickAddStockModal'));
+    modal.show();
+}
+
+function removeStock(productId) {
+    document.getElementById('remove_stock_product_id').value = productId;
+    const modal = new bootstrap.Modal(document.getElementById('quickRemoveStockModal'));
+    modal.show();
+}
+
+async function submitAddStock() {
+    const form = document.getElementById('addStockForm');
+    const formData = new FormData(form);
+    const productId = formData.get('product_id');
+    const quantity = formData.get('quantity');
+    
+    try {
+        const response = await fetch(`/api/products/${productId}/stock`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                quantity: parseInt(quantity),
+                operation: 'add'
+            })
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert(error.error);
+        }
+    } catch (error) {
+        alert('Error updating stock');
+    }
+}
+
+async function submitRemoveStock() {
+    const form = document.getElementById('removeStockForm');
+    const formData = new FormData(form);
+    const productId = formData.get('product_id');
+    const quantity = formData.get('quantity');
+    
+    try {
+        const response = await fetch(`/api/products/${productId}/stock`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                quantity: parseInt(quantity),
+                operation: 'remove'
+            })
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert(error.error);
+        }
+    } catch (error) {
+        alert('Error updating stock');
+    }
+}
+
+// Add AI prediction functionality
+async function getPrediction(productId) {
+    try {
+        const response = await fetch(`/api/products/${productId}/predict_restock`);
+        const data = await response.json();
+        
+        if (data.days_until_reorder) {
+            alert(`Prediction Results:\n\nDays until reorder needed: ${data.days_until_reorder}\nSuggested order quantity: ${data.suggested_order}\nDaily average consumption: ${data.daily_average_consumption}`);
+        } else {
+            alert(data.message);
+        }
+    } catch (error) {
+        alert('Error getting prediction');
+    }
+}
+
+async function submitAddProduct() {
+    const form = document.getElementById('addProductForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    
+    // Validate required fields
+    if (!data.name || !data.category || !data.unit_price || !data.quantity || !data.reorder_level) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    // Validate numeric fields
+    if (isNaN(data.unit_price) || isNaN(data.quantity) || isNaN(data.reorder_level)) {
+        alert('Please enter valid numbers for Unit Price, Quantity, and Reorder Level');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/products', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addProductModal'));
+            modal.hide();
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert(error.error || 'Error adding product');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error adding product. Please try again.');
+    }
+}
+</script>
+{% endblock %} 

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Transactions</h2>
+        <div class="btn-group">
+            <a href="{{ url_for('export_transactions', date=request.args.get('date', 'month'), type=request.args.get('type', 'all'), product=request.args.get('product', 'all')) }}" class="btn btn-success">
+                <i class="fas fa-download"></i> Download CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Date Range</label>
+                    <select name="date" class="form-select">
+                        <option value="today" {% if request.args.get('date') == 'today' %}selected{% endif %}>Today</option>
+                        <option value="week" {% if request.args.get('date') == 'week' %}selected{% endif %}>This Week</option>
+                        <option value="month" {% if request.args.get('date', 'month') == 'month' %}selected{% endif %}>This Month</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Transaction Type</label>
+                    <select name="type" class="form-select">
+                        <option value="all" {% if request.args.get('type', 'all') == 'all' %}selected{% endif %}>All</option>
+                        <option value="in" {% if request.args.get('type') == 'in' %}selected{% endif %}>Stock In</option>
+                        <option value="out" {% if request.args.get('type') == 'out' %}selected{% endif %}>Stock Out</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Product</label>
+                    <select name="product" class="form-select">
+                        <option value="all" {% if request.args.get('product', 'all') == 'all' %}selected{% endif %}>All Products</option>
+                        {% for product in products %}
+                        <option value="{{ product.id }}" {% if request.args.get('product')|int == product.id %}selected{% endif %}>
+                            {{ product.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Product</th>
+                            <th>Type</th>
+                            <th>Quantity</th>
+                            <th>User</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                        <tr>
+                            <td>{{ transaction.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ transaction.product.name }}</td>
+                            <td>
+                                {% if transaction.transaction_type == 'in' %}
+                                <span class="badge bg-success">Stock In</span>
+                                {% else %}
+                                <span class="badge bg-danger">Stock Out</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ transaction.quantity }}</td>
+                            <td>{{ transaction.user.username }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
